@@ -1,0 +1,195 @@
+# Polarizable Charge Equilibration Model
+Electrostatic interactions play a critical role in determining the properties, structures, and dynamics of chemical, biochemical, and material systems. These interactions are described well at the level of quantum mechanics (QM) but not so well for the various models used in force field simulations of these systems. **Polarizable Charge Equilibration (PQEq)** model has been developed to predict rapidly and dynamically the atomic charges and polarization underlying the electrostatic interactions. The parameters for PQEq are derived from experimental atomic properties of all elements up to Nobelium (atomic no. =102). 
+## Overview of the model
+The polarization is described using an atomic sized Gaussian shaped electron density that can polarize away from the core in response to internal and external electric fields, while at the same time adjusting the charge on each core (also described as a Gaussian function) so as to achieve a constant chemical potential across all atoms of the system. A schematic of the PQEq model for a two atom system is shown below (Fig. 1). 
+
+<img src="http://i64.tinypic.com/2eog0oj.jpg" border="0" alt="Image and video hosting by TinyPic">
+
+Fig 1. Partition of a two-atom system into core and shell for the PQEq model. Both cores and shells are described by spherical _1s_ Gaussian charge distributions. The core (_?<sub>ic</sub>_) consists of two parts; _?<sub>i</sub>_ with a variable total charge (_q<sub>i</sub>_) and _?<sub>iZ</sub>_ with a fixed total charge (_Z<sub>i</sub>_). The shell (_?<sub>is</sub>_) has a fixed total charge of _-Z<sub>i</sub>_. The shell and core of an atom interact with each other through a harmonic spring force. Cores and shells of different atoms interact with each other through Coulombic interactions as well. The atomic charge on each core (_q<sub>i</sub>_) is allowed flow within the system until the atomic chemical potentials are equalized. 
+
+<img src="http://i66.tinypic.com/2yjrdp1.jpg" border="0" alt="Image and video hosting by TinyPic">
+
+## Compiling the Code
+The PQEq code has been developed as a [package](http://lammps.sandia.gov/doc/Section_packages.html) for [LAMMPS](http://lammps.sandia.gov/) molecular dynamics simulator. 
+To install PQEq, simply run the following commands while you are in the src directory: 
+  
+`make yes-pqeq`
+
+`make foo`
+
+where foo is a a low-level Makefile that you need to create for your machine (Makefile.foo) and leave a copy of it in the src/MAKE directory. LAMMPS provides several Makefile examples in the src/MAKE directory that can be easily modified based on your machine. Consult [Making LAMMPS](http://lammps.sandia.gov/doc/Section_start.html#start-2) and [Making LAMMPS with optional packages](http://lammps.sandia.gov/doc/Section_start.html#start-3) for more information.
+
+
+## Running PQEq
+To run PQEq, the user should provide at least two files: 
+1. Input file: contains the [LAMMPS commands](http://lammps.sandia.gov/doc/Section_commands.html) to run a simulation
+2. Data file: contains information about the size of the problem, initial core and shell coordinates, molecular topology, and (optionally) PQEq parameters.   
+
+## 1. Input file
+The following commands should be added to the [LAMMPS input](http://lammps.sandia.gov/doc/Section_commands.html) file:
+
+`units real` 
+
+`atom_style pqeq`
+
+`pair_style coul/pqeqgauss cutoff1 cutoff2`
+
+`fix ID group-ID pqeq Nevery cutoff1 cutoff2 tolerance`
+
+* cutoff1,cutoff2 = lower and upper cutoff for 7th order Taper function 
+* ID = user-assigned name for the [fix](http://lammps.sandia.gov/doc/fix.html)
+* group-ID = ID of the group of atoms to apply the fix to
+* Nevery = perform PQEq charge and shell equlibriation every this many steps
+* tolerance = precision to which charges will be equilibrated
+
+### Example
+`pair_style coul/pqeqgauss 0.0 12.0`
+
+`fix pqeq all pqeq 1 0.0 12.0 1.0e-6`
+
+### Description 
+The [_units_](http://lammps.sandia.gov/doc/units.html) command sets all quantities specified in the input script and data file to [real units](http://lammps.sandia.gov/doc/units.html) which is required by PQEq. The [_atom_style_](http://lammps.sandia.gov/doc/atom_style.html) commands defines the style of atoms and determines what attributes are associated with the atoms. The [_pair_style_](http://lammps.sandia.gov/doc/pair_style.html) command computes the electrostatic potential energy, atomic forces, and virials based on the PQEq potential (see above eqaution). The [_fix_](http://lammps.sandia.gov/doc/fix.html) updates the atomic charges and shell positions each _Nevery_ time steps. 
+The parameters of PQEq could be either defined in the input file (right after the _pair_style_ command):
+
+`pair_coeff I I Xi Ji Rc polar Z Rs Ks K4`
+
+or in the data file (see next section):
+
+`Pair Coeffs`
+
+`I Xi Ji Rc polar Z Rs Ks K4`
+
+
+* I= atom type (Note: don't need to define cross terms)
+* Xi= electronegativity 
+* Ji= idempotential 
+* Rc= the core radius 
+* polar= 1: polarizable and 0: nonpolarizable atom 
+* Z= the amount of fixed charge on core and shell
+* Rs= the shell radius 
+* Ks= spring force constant for 2nd order term 
+* K4= spring force constant for 4th order term (not used currently!) 
+
+## 2. Data file
+
+The data file for PQEq is defined in the same way that LAMMPS defines [data files](http://lammps.sandia.gov/doc/read_data.html).    
+
+For the _pqeq_ atom style the [_Atom_](http://lammps.sandia.gov/doc/read_data.html) section has the following format: 
+
+atom-ID molecule-ID atom-type q x y z sx sy sz 
+
+where sx,sy,sz are the relative positions of the shell of atom _i_ with respect to the core of the atom _i_
+
+## Coupling PQEq with other Potentials
+
+Our implementation allows hybrid combination of PQEq with other available potentials in LAMMPS (e.g. ReaxFF, UFF, Dreiding, CHARMM, and COMPASS) to account for the electrostatic part of the interactions. It is done via the LAMMPS [hybrid and hybrid/overlay styles](http://lammps.sandia.gov/doc/pair_hybrid.html) commands.     
+ 
+### Example
+
+
+
+`units             real`
+`boundary          p p p`
+`atom_style        pqeq`
+`read_data         data_i
+pair_style        coul/pqeqgauss 0 12.0
+
+
+`boundary f f f`
+
+`units real`
+
+`neighbor 2.0 nsq`
+
+`atom_style pqeq`
+
+'pair_style coul/pqeqgauss 10 12
+read_data twoatom.data
+fix 1 all pqeq 20.0 1.0
+thermo 1
+dump 1 all custom 1 dump.out id x y z q
+timestep 1
+run 100
+
+
+The _atom_style_ command invokes reading the initial atomic coordinates, molecular topology, and (optionally) PQEq coefficients from the data file (see below). The _pair_style_ computes the electrostatic potential energy, atomic forces, and virials based on the PQEq potential. The _fix_ updates the atomic charges and shell positions for _nevery_ time steps   
+
+
+
+What things you need to install the software and how to install them
+
+```
+Give examples
+```
+
+### Installing
+
+A step by step series of examples that tell you have to get a development env running
+
+Say what the step will be
+
+```
+Give the example
+```
+
+And repeat
+
+```
+until finished
+```
+
+End with an example of getting some data out of the system or using it for a little demo
+
+## Running the tests
+
+Explain how to run the automated tests for this system
+
+### Break down into end to end tests
+
+Explain what these tests test and why
+
+```
+Give an example
+```
+
+### And coding style tests
+
+Explain what these tests test and why
+
+```
+Give an example
+```
+
+## Deployment
+
+Add additional notes about how to deploy this on a live system
+
+## Built With
+
+* [Dropwizard](http://www.dropwizard.io/1.0.2/docs/) - The web framework used
+* [Maven](https://maven.apache.org/) - Dependency Management
+* [ROME](https://rometools.github.io/rome/) - Used to generate RSS Feeds
+
+## Contributing
+
+Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426) for details on our code of conduct, and the process for submitting pull requests to us.
+
+## Versioning
+
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/your/project/tags). 
+
+## Authors
+
+* **Billie Thompson** - *Initial work* - [PurpleBooth](https://github.com/PurpleBooth)
+
+See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+
+## Acknowledgments
+
+* Hat tip to anyone who's code was used
+* Inspiration
+* etc
